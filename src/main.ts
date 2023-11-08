@@ -3,11 +3,17 @@ import "./style.css";
 import leaflet from "leaflet";
 import luck from "./luck";
 import "./leafletWorkaround";
+// import Board from "./board";
 
 const MERRILL_CLASSROOM = leaflet.latLng({
     lat: 36.9995,
     lng: -122.0533,
 });
+
+// const NULL_ISLAND = leaflet.latLng({
+//     lat: 0,
+//     lng: 0,
+// });
 
 const GAMEPLAY_ZOOM_LEVEL = 19;
 const TILE_DEGREES = 1e-4;
@@ -111,3 +117,41 @@ for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
         }
     }
 }
+
+// function luck(situation: string) {
+//     return 0.47;
+//   }
+  
+//   interface Cell {
+//     i: number;
+//     j: number;
+//   }
+  
+//   interface Geocoin {
+//     mintingLocation: Cell;
+//     serialNumber: number;
+//   }
+  
+//   class Geocache {
+//     coins: Geocoin[];
+//     description: string;
+  
+//     constructor(cell: Cell) {
+//       const A = ["lucky", "ominous", "whimsical", "superb"];
+//       const B = ["bucket", "tarpit", "slab", "receptacle", "platform", "pot"];
+  
+//       const selectedA = A[Math.floor(luck(["descA", cell.i, cell.j].toString())*A.length)];
+//       const selectedB = B[Math.floor(luck(["descB", cell.i, cell.j].toString())*B.length)];
+//       this.description = `${selectedA} ${selectedB}`;
+  
+//       const numInitialCoins = Math.floor(luck(["intialCoins", cell.i, cell.j].toString())*3);
+//       this.coins = [];
+//       for(let i = 0; i < numInitialCoins; i++) {
+//         this.coins.push({mintingLocation: cell, serialNumber: i});
+//       }
+//     }
+  
+//     toMomento(): string {
+//       return this.coins.map((coin) => [coin.mintingLocation.i, coin.mintingLocation.j, coin.serialNumber].toString()).join(';');
+//     }
+//   }
