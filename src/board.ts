@@ -1,6 +1,7 @@
 import leaflet from "leaflet";
 
-interface Cell {
+
+export interface Cell {
     readonly i: number;
     readonly j: number;
 }
@@ -33,19 +34,29 @@ export class Board {
         return this.getCanonicalCell({ i, j });
     }
 
-    // getCellBounds(cell: Cell): leaflet.LatLngBounds {
-    //     // ...
-    // }
+    getCellBounds(cell: Cell): leaflet.LatLngBounds {
+        const bounds = leaflet.latLngBounds([
+            [
+                cell.i * this.tileWidth,
+                cell.j * this.tileWidth,
+            ],
+            [
+                (cell.i + 1) * this.tileWidth,
+                (cell.j + 1) * this.tileWidth,
+            ],
+        ]);
+        return bounds;
+    }
 
-    // // const aBox = leaflet.latLngBounds([
-    // //     [36.9995, -122.0533],
-    // //     [36.9994, -122.0532]
-    // // ]);
-
-    // getCellsNearPoint(point: leaflet.LatLng): Cell[] {
-    //     const resultCells: Cell[] = [];
-    //     const originCell = this.getCellForPoint(point);
-    //     // ...
-    //     return resultCells;
-    // }
+    getCellsNearPoint(point: leaflet.LatLng): Cell[] {
+        const resultCells: Cell[] = [];
+        const originCell = this.getCellForPoint(point);
+        // search within radius for nearby cells
+        for (let i = -this.tileVisibilityRadius; i <= this.tileVisibilityRadius; i++) {
+            for (let j = -this.tileVisibilityRadius; j <= this.tileVisibilityRadius; i++) {
+                resultCells.push(this.getCanonicalCell({ i: (originCell.i + i), j: (originCell.j + j) }));
+            }
+        }
+        return resultCells;
+    }
 }
