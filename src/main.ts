@@ -90,19 +90,18 @@ const playerMarker = leaflet.marker(MERRILL_CLASSROOM);
 playerMarker.bindTooltip("That's you!");
 playerMarker.addTo(map);
 
-loadLocal();
-
-map.setView(playerMarker.getLatLng());
-
 const statusPanel = document.querySelector<HTMLDivElement>("#statusPanel")!;
 statusPanel.innerHTML = `Geocoins: ${geocoinList.length}`;
 
 let geocachePopup = new Map<Cell, string>();
-let geocacheList: leaflet.Rectangle[] = [];
+const geocacheList: leaflet.Rectangle[] = [];
 
 let coordinates: leaflet.LatLng[] = [];
 coordinates.push(playerMarker.getLatLng());
 const polyline = leaflet.polyline(coordinates, { color: "red" }).addTo(map);
+
+loadLocal();
+map.setView(playerMarker.getLatLng());
 
 regenerateCells();
 
@@ -250,7 +249,6 @@ interface Data {
     geocachePopupData: [Cell, string][];
     playerLocationData: leaflet.LatLng;
     coordinateData: leaflet.LatLng[];
-    geocacheListData: leaflet.Rectangle[];
 }
 
 function saveLocal() {
@@ -259,25 +257,32 @@ function saveLocal() {
         geocachePopupData: Array.from(geocachePopup),
         playerLocationData: playerMarker.getLatLng(),
         coordinateData: coordinates,
-        geocacheListData: geocacheList,
     };
     localStorage.setItem("playerData", JSON.stringify(saveData));
 }
 
 function loadLocal() {
     const loadData = localStorage.getItem("playerData");
+    let data: Data;
     if (loadData) {
-        const data = JSON.parse(loadData) as Data;
+        data = JSON.parse(loadData) as Data;
         geocoinList = data.geocoinListData;
         geocachePopup = new Map(data.geocachePopupData);
         playerMarker.setLatLng(data.playerLocationData);
         coordinates = data.coordinateData;
-        geocacheList = data.geocacheListData;
+    } else {
+        data = {
+            geocoinListData: [],
+            geocachePopupData: [],
+            playerLocationData: MERRILL_CLASSROOM,
+            coordinateData: [],
+        };
     }
 }
 
 function tick() {
     saveLocal();
     requestAnimationFrame(tick);
+    console.log("saving");
 }
 tick();
