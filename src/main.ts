@@ -11,10 +11,7 @@ interface Geocoin {
     serialNumber: number;
 }
 
-// interface Geocache {
-//     coins: Geocoin[];
-// }
-const geocoinList: Geocoin[] = [];
+let geocoinList: Geocoin[] = [];
 
 function geocoinListStr(geocoinList: Geocoin[]) {
     let listStr = "";
@@ -25,12 +22,12 @@ function geocoinListStr(geocoinList: Geocoin[]) {
     return listStr;
 }
 
-// interface Momento<T> {
-//     toMomento(): T;
-//     fromMomento(momento: T): void;
-// }
+interface Momento<T> {
+    toMomento(): T;
+    fromMomento(momento: T): void;
+}
 
-class Geocache {
+class Geocache implements Momento<string> {
     coins: Geocoin[];
     description: string;
 
@@ -56,7 +53,6 @@ class Geocache {
     fromMomento(momento: string) {
         this.coins = JSON.parse(momento) as Geocoin[];
     }
-
 }
 
 const MERRILL_CLASSROOM = leaflet.latLng({
@@ -94,6 +90,92 @@ const playerMarker = leaflet.marker(MERRILL_CLASSROOM);
 playerMarker.bindTooltip("That's you!");
 playerMarker.addTo(map);
 
+loadLocal();
+
+map.setView(playerMarker.getLatLng());
+
+const statusPanel = document.querySelector<HTMLDivElement>("#statusPanel")!;
+statusPanel.innerHTML = `Geocoins: ${geocoinList.length}`;
+
+let geocachePopup = new Map<Cell, string>();
+let geocacheList: leaflet.Rectangle[] = [];
+
+let coordinates: leaflet.LatLng[] = [];
+coordinates.push(playerMarker.getLatLng());
+const polyline = leaflet.polyline(coordinates, { color: "red" }).addTo(map);
+
+regenerateCells();
+
+function makegeocache(i: number, j: number) {
+    const geocacheCell = board.getCellForPoint(leaflet.latLng({ lat: i, lng: j }));
+
+    const newGeocacheCell = new Geocache(geocacheCell);
+    if (geocachePopup.has(geocacheCell)) {
+        newGeocacheCell.fromMomento(geocachePopup.get(geocacheCell)!);
+    } else {
+        geocachePopup.set(geocacheCell, newGeocacheCell.toMomento());
+    }
+
+    const geocache = leaflet.rectangle(board.getCellBounds(geocacheCell));
+
+    const cellList: Geocoin[] = [];
+    geocachePopup.set(geocacheCell, newGeocacheCell.toMomento());
+
+    geocache.bindPopup(() => {
+        const value = Math.floor(luck([i, j, "initialValue"].toString()) * 10);
+        for (let s = 0; s < value; s++) {
+            if (cellList[s]?.serialNumber != s) {
+                cellList.push({
+                    mintingLocation: geocacheCell,
+                    serialNumber: s
+                });
+            }
+        }
+        const container = document.createElement("div");
+        container.innerHTML = `
+                <div>There is a pit here at "${i},${j}", contains: <span id="value">${(geocoinListStr(newGeocacheCell.coins))}</span></div>
+                <button id="collect">collect</button>
+                <button id="deposit">deposit</button>`;
+
+        const collect = container.querySelector<HTMLButtonElement>("#collect")!;
+        collect.addEventListener("click", () => {
+            if (newGeocacheCell.coins.length > 0) {
+                geocoinList.push(newGeocacheCell.coins.pop()!);
+                container.querySelector<HTMLSpanElement>("#value")!.innerHTML = (geocoinListStr(newGeocacheCell.coins));
+                geocachePopup.set(geocacheCell, newGeocacheCell.toMomento());
+                statusPanel.innerHTML = `Geocoins: ${geocoinList.length}`;
+            }
+        });
+
+        const deposit = container.querySelector<HTMLButtonElement>("#deposit")!;
+        deposit.addEventListener("click", () => {
+            if (geocoinList.length == 0) {
+                return;
+            }
+            newGeocacheCell.coins.push(geocoinList.pop()!);
+            container.querySelector<HTMLSpanElement>("#value")!.innerHTML = (geocoinListStr(newGeocacheCell.coins));
+            geocachePopup.set(geocacheCell, newGeocacheCell.toMomento());
+            statusPanel.innerHTML = `Geocoins: ${geocoinList.length}`;
+        });
+        return container;
+    });
+    geocache.addTo(map);
+    geocacheList.push(geocache);
+    return;
+}
+
+function regenerateCells() {
+    for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
+        for (let j = -NEIGHBORHOOD_SIZE; j < NEIGHBORHOOD_SIZE; j++) {
+            const playerLat = i + Math.floor(playerMarker.getLatLng().lat / TILE_DEGREES);
+            const playerLng = j + Math.floor(playerMarker.getLatLng().lng / TILE_DEGREES);
+            if (luck([playerLat, playerLng].toString()) < GEOCACHE_SPAWN_PROBABILITY) {
+                makegeocache(playerLat, playerLng);
+            }
+        }
+    }
+}
+
 const sensorButton = document.querySelector("#sensor")!;
 sensorButton.addEventListener("click", () => {
     navigator.geolocation.watchPosition((position) => {
@@ -101,7 +183,12 @@ sensorButton.addEventListener("click", () => {
             leaflet.latLng(position.coords.latitude, position.coords.longitude)
         );
         map.setView(playerMarker.getLatLng());
+        for (const geocache of geocacheList) {
+            geocache.remove();
+        }
         regenerateCells();
+        coordinates = [leaflet.latLng(position.coords.latitude, position.coords.longitude)];
+        polyline.setLatLngs(coordinates);
     });
 });
 
@@ -114,6 +201,8 @@ function movePlayer(i: number, j: number) {
         geocache.remove();
     }
     regenerateCells();
+    coordinates.push(playerMarker.getLatLng());
+    polyline.setLatLngs(coordinates);
 }
 
 const northButton = document.querySelector("#north")!;
@@ -137,128 +226,58 @@ eastButton.addEventListener("click", () => {
     regenerateCells();
 });
 
-let geocoinsVal = 0;
-const statusPanel = document.querySelector<HTMLDivElement>("#statusPanel")!;
-statusPanel.innerHTML = "No geocoins yet...";
-
-const geocachePopup = new Map<Cell, string>();
-const geocacheList: leaflet.Rectangle[] = [];
-
-regenerateCells();
-
-function makegeocache(i: number, j: number) {
-    const geocacheCell = board.getCellForPoint(leaflet.latLng({ lat: i, lng: j }));
-
-    const newGeocacheCell = new Geocache(geocacheCell);
-    if (geocachePopup.has(geocacheCell)) {
-        newGeocacheCell.fromMomento(geocachePopup.get(geocacheCell)!);
-    } else {
-        geocachePopup.set(geocacheCell, newGeocacheCell.toMomento());
-    }
-
-    const geocache = leaflet.rectangle(board.getCellBounds(geocacheCell));
-
-    const cellList: Geocoin[] = [];
-    geocachePopup.set(geocacheCell, newGeocacheCell.toMomento());
-
-    geocache.bindPopup(() => {
-        let value = Math.floor(luck([i, j, "initialValue"].toString()) * 10);
-        for (let s = 0; s < value; s++) {
-            if (cellList[s]?.serialNumber != s) {
-                cellList.push({
-                    mintingLocation: geocacheCell,
-                    serialNumber: s
-                });
-            }
+const resetButton = document.querySelector("#reset")!;
+resetButton.addEventListener("click", () => {
+    const resetPrompt = prompt("Reset game state? (Yes / No)")!;
+    if (resetPrompt.toLowerCase() == "yes") {
+        geocoinList.length = 0;
+        `Geocoins: ${geocoinList.length}`;
+        for (const geocache of geocacheList) {
+            geocache.remove();
         }
-        const container = document.createElement("div");
-        container.innerHTML = `
-                <div>There is a pit here at "${i},${j}", contains: <span id="value">${(geocoinListStr(newGeocacheCell.coins))}</span></div>
-                <button id="poke">poke</button>
-                <button id="deposit">deposit</button>`;
+        geocacheList.length = 0;
+        coordinates.length = 0;
+        geocachePopup.clear();
+        playerMarker.setLatLng(MERRILL_CLASSROOM);
+        polyline.setLatLngs(coordinates);
+        map.setView(playerMarker.getLatLng());
+        regenerateCells();
+    }
+});
 
-        const poke = container.querySelector<HTMLButtonElement>("#poke")!;
-        poke.addEventListener("click", () => {
-            if (cellList.length > 0) {
-                value--;
-                geocoinList.push(newGeocacheCell.coins.pop()!);
-                container.querySelector<HTMLSpanElement>("#value")!.innerHTML =
-                    (geocoinListStr(newGeocacheCell.coins));
-                geocoinsVal++;
-                geocachePopup.set(geocacheCell, newGeocacheCell.toMomento());
-                statusPanel.innerHTML = `Geocoins: ${geocoinList.length}`;
-            }
-        });
-
-        const deposit = container.querySelector<HTMLButtonElement>("#deposit")!;
-        deposit.addEventListener("click", () => {
-            if (geocoinList.length == 0) {
-                return;
-            }
-            newGeocacheCell.coins.push(geocoinList.pop()!);
-            container.querySelector<HTMLSpanElement>("#value")!.innerHTML = (geocoinListStr(newGeocacheCell.coins));
-            geocachePopup.set(geocacheCell, newGeocacheCell.toMomento());
-            if (geocoinsVal == 0) {
-                statusPanel.innerHTML = "No geocoins yet...";
-            } else {
-                statusPanel.innerHTML = `Geocoins: ${geocoinList.length}`;
-            }
-        });
-        return container;
-    });
-    geocache.addTo(map);
-    geocacheList.push(geocache);
-    return;
+interface Data {
+    geocoinListData: Geocoin[];
+    geocachePopupData: [Cell, string][];
+    playerLocationData: leaflet.LatLng;
+    coordinateData: leaflet.LatLng[];
+    geocacheListData: leaflet.Rectangle[];
 }
 
-function regenerateCells() {
-    for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
-        for (let j = -NEIGHBORHOOD_SIZE; j < NEIGHBORHOOD_SIZE; j++) {
-            const playerLat = i + Math.floor(playerMarker.getLatLng().lat / TILE_DEGREES);
-            const playerLng = j + Math.floor(playerMarker.getLatLng().lng / TILE_DEGREES);
-            if (luck([playerLat, playerLng].toString()) < GEOCACHE_SPAWN_PROBABILITY) {
-                makegeocache(playerLat, playerLng);
-            }
-        }
+function saveLocal() {
+    const saveData: Data = {
+        geocoinListData: geocoinList,
+        geocachePopupData: Array.from(geocachePopup),
+        playerLocationData: playerMarker.getLatLng(),
+        coordinateData: coordinates,
+        geocacheListData: geocacheList,
+    };
+    localStorage.setItem("playerData", JSON.stringify(saveData));
+}
+
+function loadLocal() {
+    const loadData = localStorage.getItem("playerData");
+    if (loadData) {
+        const data = JSON.parse(loadData) as Data;
+        geocoinList = data.geocoinListData;
+        geocachePopup = new Map(data.geocachePopupData);
+        playerMarker.setLatLng(data.playerLocationData);
+        coordinates = data.coordinateData;
+        geocacheList = data.geocacheListData;
     }
 }
 
-// j + Math.floor(MERRILL_CLASSROOM.lng / TILE_DEGREES)
-// function luck(situation: string) {
-//     return 0.47;
-//   }
-
-//   interface Cell {
-//     i: number;
-//     j: number;
-//   }
-
-//   interface Geocoin {
-//     mintingLocation: Cell;
-//     serialNumber: number;
-//   }
-
-//   class Geocache {
-//     coins: Geocoin[];
-//     description: string;
-
-//     constructor(cell: Cell) {
-//       const A = ["lucky", "ominous", "whimsical", "superb"];
-//       const B = ["bucket", "targeocache", "slab", "receptacle", "platform", "pot"];
-
-//       const selectedA = A[Math.floor(luck(["descA", cell.i, cell.j].toString())*A.length)];
-//       const selectedB = B[Math.floor(luck(["descB", cell.i, cell.j].toString())*B.length)];
-//       this.description = `${selectedA} ${selectedB}`;
-
-//       const numInitialCoins = Math.floor(luck(["intialCoins", cell.i, cell.j].toString())*3);
-//       this.coins = [];
-//       for(let i = 0; i < numInitialCoins; i++) {
-//         this.coins.push({mintingLocation: cell, serialNumber: i});
-//       }
-//     }
-
-//     toMomento(): string {
-//       return this.coins.map((coin) => [coin.mintingLocation.i, coin.mintingLocation.j, coin.serialNumber].toString()).join(';');
-//     }
-//   }
-//  const geocacheMap = new Map<string, leaflet.Layer>();
+function tick() {
+    saveLocal();
+    requestAnimationFrame(tick);
+}
+tick();
